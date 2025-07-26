@@ -34,12 +34,51 @@ Configure via environment variables:
 
 ### Running the Server
 
-```bash
-# Build and run
-./run.sh
+The run script provides multiple commands for different workflows:
 
-# Run in test mode
-./run.sh -test
+```bash
+# Build the server binary
+./run.sh build
+
+# Run the server
+./run.sh run
+
+# Test with sample URLs
+./run.sh test
+
+# Development mode with auto-restart
+./run.sh dev
+
+# Show version information
+./run.sh version
+
+# Show all available commands
+./run.sh help
+```
+
+#### Testing Commands
+
+```bash
+# Unit tests only (fast)
+./run.sh test-unit
+
+# Full test suite including real websites
+./run.sh test-full
+
+# Comprehensive test suite with reporting
+./run.sh test-suite
+
+# Clean build artifacts
+./run.sh clean
+```
+
+#### Configuration Examples
+
+```bash
+# Run with custom configuration
+FETCH_URL_BLOCK_LOCAL=false ./run.sh run
+FETCH_URL_CHROME_POOL_SIZE=5 ./run.sh test
+FETCH_URL_CACHE_TTL=1800 ./run.sh run
 ```
 
 ### MCP Tool Interface
@@ -103,9 +142,73 @@ Fetches content from a URL with various options.
 
 ### Running Tests
 
+The URL Fetcher includes comprehensive test suites for different scenarios:
+
+#### Quick Tests (Unit Tests Only)
+```bash
+go test ./test/... -v -short
+```
+
+#### Full Test Suite (Including Real Websites)
 ```bash
 go test ./test/... -v
 ```
+
+#### Comprehensive Test Suite
+```bash
+./test_suite.sh
+```
+
+#### Individual Test Categories
+
+**Basic functionality:**
+```bash
+go test ./test/... -v -run="TestHTTPEngine|TestContentProcessor|TestCache"
+```
+
+**Real website integration:**
+```bash
+go test ./test/... -v -run="TestRealWebsiteIntegration"
+```
+
+**Format conversion testing:**
+```bash
+go test ./test/... -v -run="TestFormatConversion"
+```
+
+**Chrome engine testing:**
+```bash
+go test ./test/... -v -run="TestChrome"
+```
+
+#### Test Mode (Interactive Testing)
+```bash
+go run cmd/main.go -test
+```
+
+This runs predefined test cases against real websites and shows the formatted output.
+
+#### Test Coverage
+
+The test suite covers:
+- ✅ **HTTP Engine**: Static content fetching with validation and security
+- ✅ **Chrome Engine**: JavaScript-rendered content with browser pool
+- ✅ **Content Processing**: Text extraction, HTML cleaning, Markdown conversion
+- ✅ **Format Conversion**: All three output formats (text, HTML, markdown)
+- ✅ **Real Websites**: Wikipedia, GitHub, Hacker News, MDN, RFC documents
+- ✅ **Security**: URL validation, SSRF protection, content size limits
+- ✅ **Performance**: Caching, concurrent requests, timeout handling
+- ✅ **Configuration**: All environment variables and settings
+- ✅ **Error Handling**: Network errors, invalid URLs, Chrome fallback
+
+#### Test Websites Used
+
+- **Wikipedia**: Rich content with complex HTML structure
+- **GitHub**: Developer platform with modern web technologies
+- **Hacker News**: News aggregation with simple HTML
+- **MDN Web Docs**: Technical documentation with detailed content
+- **RFC Documents**: Plain text technical specifications
+- **Example.com**: Basic HTML for baseline testing
 
 ### Project Structure
 

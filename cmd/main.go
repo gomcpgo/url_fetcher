@@ -17,6 +17,12 @@ import (
 	"github.com/gomcpgo/url_fetcher/pkg/types"
 )
 
+// Version information (set by build script)
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+)
+
 // URLFetcherMCPServer implements the MCP server for URL fetching
 type URLFetcherMCPServer struct {
 	config    *config.Config
@@ -256,23 +262,78 @@ func runTestMode() {
 	}
 	defer server.Close()
 
-	// Test cases
+	// Test cases with diverse real-world examples
 	testCases := []struct {
 		name   string
 		params map[string]interface{}
 	}{
 		{
-			name: "Simple HTTP fetch",
+			name: "Basic example - Text format",
 			params: map[string]interface{}{
 				"url":    "https://example.com",
 				"format": "text",
 			},
 		},
 		{
-			name: "Markdown conversion",
+			name: "Basic example - Markdown format",
 			params: map[string]interface{}{
 				"url":    "https://example.com",
 				"format": "markdown",
+			},
+		},
+		{
+			name: "Basic example - HTML format",
+			params: map[string]interface{}{
+				"url":    "https://example.com",
+				"format": "html",
+			},
+		},
+		{
+			name: "Wikipedia article - Rich content",
+			params: map[string]interface{}{
+				"url":    "https://en.wikipedia.org/wiki/Go_(programming_language)",
+				"format": "markdown",
+				"max_content_length": 5000,
+			},
+		},
+		{
+			name: "GitHub repository - Code platform",
+			params: map[string]interface{}{
+				"url":    "https://github.com/golang/go",
+				"format": "text",
+				"max_content_length": 3000,
+			},
+		},
+		{
+			name: "Hacker News - News aggregator",
+			params: map[string]interface{}{
+				"url":    "https://news.ycombinator.com",
+				"format": "text",
+				"max_content_length": 2000,
+			},
+		},
+		{
+			name: "Chrome engine test - JavaScript content",
+			params: map[string]interface{}{
+				"url":    "https://example.com",
+				"engine": "chrome",
+				"format": "text",
+			},
+		},
+		{
+			name: "Content size limit test",
+			params: map[string]interface{}{
+				"url":                "https://example.com",
+				"format":             "text",
+				"max_content_length": 500,
+			},
+		},
+		{
+			name: "RFC document - Plain text content",
+			params: map[string]interface{}{
+				"url":                "https://tools.ietf.org/rfc/rfc7231.txt",
+				"format":             "text",
+				"max_content_length": 2000,
 			},
 		},
 	}
@@ -296,7 +357,15 @@ func runTestMode() {
 func main() {
 	// Parse command line flags
 	testMode := flag.Bool("test", false, "Run in test mode")
+	versionFlag := flag.Bool("version", false, "Show version information")
 	flag.Parse()
+	
+	if *versionFlag {
+		fmt.Printf("URL Fetcher MCP Server\n")
+		fmt.Printf("Version: %s\n", Version)
+		fmt.Printf("Build Time: %s\n", BuildTime)
+		return
+	}
 
 	if *testMode {
 		runTestMode()
@@ -319,7 +388,7 @@ func main() {
 	// Create and run MCP server
 	mcpServer := server.New(server.Options{
 		Name:     "URL Fetcher",
-		Version:  "1.0.0",
+		Version:  Version,
 		Registry: registry,
 	})
 
