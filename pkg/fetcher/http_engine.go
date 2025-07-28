@@ -61,20 +61,83 @@ func (e *HTTPEngine) Fetch(fetchURL string, maxContentLength int) (*types.FetchR
 		return types.ErrorResponse(fetchURL, types.EngineHTTP, err, time.Since(startTime)), err
 	}
 
-	// Set headers
+	// Set browser-like headers
 	req.Header.Set("User-Agent", types.DefaultUserAgent)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Accept-Encoding", "gzip, deflate")
-	req.Header.Set("Cache-Control", "no-cache")
-	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("DNT", "1")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "none")
+	req.Header.Set("Sec-Fetch-User", "?1")
+	req.Header.Set("Cache-Control", "max-age=0")
 
-	// Execute request
-	resp, err := e.client.Do(req)
-	if err != nil {
-		return types.ErrorResponse(fetchURL, types.EngineHTTP, err, time.Since(startTime)), err
+	// Execute request with retry logic for server errors
+	var resp *http.Response
+	maxRetries := 2
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Add small delay between retries (except first attempt)
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+
+		// Create new request for each attempt (in case body was consumed)
+		if attempt > 0 {
+			req, err = http.NewRequest("GET", fetchURL, nil)
+			if err != nil {
+				return types.ErrorResponse(fetchURL, types.EngineHTTP, err, time.Since(startTime)), err
+			}
+
+			// Re-set headers for retry attempts
+			req.Header.Set("User-Agent", types.DefaultUserAgent)
+			req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
+			req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+			req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+			req.Header.Set("DNT", "1")
+			req.Header.Set("Connection", "keep-alive")
+			req.Header.Set("Upgrade-Insecure-Requests", "1")
+			req.Header.Set("Sec-Fetch-Dest", "document")
+			req.Header.Set("Sec-Fetch-Mode", "navigate")
+			req.Header.Set("Sec-Fetch-Site", "none")
+			req.Header.Set("Sec-Fetch-User", "?1")
+			req.Header.Set("Cache-Control", "max-age=0")
+		}
+
+		resp, err = e.client.Do(req)
+		if err != nil {
+			if attempt == maxRetries {
+				return types.ErrorResponse(fetchURL, types.EngineHTTP, err, time.Since(startTime)), err
+			}
+			continue
+		}
+
+		// If we get a server error (5xx), retry
+		if resp.StatusCode >= 500 && attempt < maxRetries {
+			resp.Body.Close()
+			continue
+		}
+
+		// Success or non-retryable error, break out of retry loop
+		break
 	}
 	defer resp.Body.Close()
+
+	// Check for server errors and provide helpful messages
+	if resp.StatusCode >= 500 {
+		return types.ErrorResponse(fetchURL, types.EngineHTTP,
+			fmt.Errorf("server error (status %d) after %d retries. try using engine='chrome'", resp.StatusCode, maxRetries),
+			time.Since(startTime)), fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+
+	if resp.StatusCode >= 400 {
+		return types.ErrorResponse(fetchURL, types.EngineHTTP,
+			fmt.Errorf("client error (status %d): %s", resp.StatusCode, resp.Status),
+			time.Since(startTime)), fmt.Errorf("client error: %s", resp.Status)
+	}
 
 	// Read response body
 	body, err := e.readResponseBody(resp, maxContentLength)

@@ -263,8 +263,15 @@ The assistant will automatically use the `fetch_url` tool with appropriate param
 2. Reduce timeout for faster failure: `FETCH_URL_TIMEOUT=15`
 3. Lower content size limits if needed
 
-## Chrome Engine Notes
+## Engine Details
 
+### HTTP Engine
+- Automatic retry mechanism for server errors (5xx status codes)
+- Compression support (gzip, deflate, br)
+- Configurable timeout and security validation
+- Falls back gracefully when sites block HTTP requests
+
+### Chrome Engine  
 - Automatically detects Chrome/Chromium availability
 - Falls back to HTTP engine if Chrome is not available
 - Blocks unnecessary resources (images, fonts, CSS) for performance
