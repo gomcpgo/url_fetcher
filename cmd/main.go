@@ -64,7 +64,7 @@ func (s *URLFetcherMCPServer) ListTools(ctx context.Context) (*protocol.ListTool
 			},
 			"format": map[string]interface{}{
 				"type":        "string",
-				"description": "Output format: 'text' (default), 'html', or 'markdown'",
+				"description": "Output format: 'text' (default, returns cleaned plain text — no HTML tags), 'html' (returns raw HTML — use this for HTML parsing), or 'markdown'",
 				"enum":        []string{"text", "html", "markdown"},
 				"default":     "text",
 			},
@@ -86,7 +86,7 @@ func (s *URLFetcherMCPServer) ListTools(ctx context.Context) (*protocol.ListTool
 		Tools: []protocol.Tool{
 			{
 				Name:        "fetch_url",
-				Description: "Fetch content from a URL. Use engine='chrome' for JavaScript-heavy sites that need browser rendering.",
+				Description: "Fetch content from a URL. By default returns cleaned plain text (no HTML tags). Set format='html' to get raw HTML for parsing. Use engine='chrome' for JavaScript-heavy sites that need browser rendering.",
 				InputSchema: json.RawMessage(schemaBytes),
 			},
 		},
