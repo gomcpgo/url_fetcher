@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -16,6 +17,9 @@ import (
 	"github.com/gomcpgo/url_fetcher/pkg/processor"
 	"github.com/gomcpgo/url_fetcher/pkg/types"
 )
+
+//go:embed icon.svg
+var iconSVG []byte
 
 // Version information (set by build script)
 var (
@@ -388,7 +392,9 @@ func main() {
 	// Create and run MCP server
 	mcpServer := server.New(server.Options{
 		Name:     "URL Fetcher",
+		Title:    "URL Fetcher",
 		Version:  Version,
+		Icons:    protocol.IconFromSVG(iconSVG),
 		Registry: registry,
 	})
 
