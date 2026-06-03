@@ -7,7 +7,7 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20231011050154-1d073bb38998
 	github.com/chromedp/chromedp v0.9.3
 	github.com/go-shiori/go-readability v0.0.0-20230421032831-c66949dfc0ad
-	github.com/gomcpgo/mcp v1.0.1
+	github.com/gomcpgo/mcp v1.0.2
 	github.com/microcosm-cc/bluemonday v1.0.26
 	golang.org/x/net v0.19.0
 )
