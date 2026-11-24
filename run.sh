@@ -3,7 +3,8 @@
 # URL Fetcher MCP Server - Build and Run Script
 # Environment Variables:
 # - FETCH_URL_BLOCK_LOCAL: Block local/private IPs (default: true)
-# - FETCH_URL_CHROME_POOL_SIZE: Chrome browser pool size (default: 3)
+# - FETCH_URL_CHROME_POOL_SIZE: Max Chrome instances running at once (default: 3)
+# - FETCH_URL_CHROME_IDLE_TIMEOUT: Seconds before an unused Chrome is shut down (default: 300)
 # - FETCH_URL_CACHE_TTL: Cache TTL in seconds (default: 3600)
 # - FETCH_URL_TIMEOUT: Request timeout in seconds (default: 30)
 
@@ -43,7 +44,8 @@ function show_usage() {
     echo ""
     echo "Environment Variables:"
     echo "  FETCH_URL_BLOCK_LOCAL=true        # Block local/private IPs"
-    echo "  FETCH_URL_CHROME_POOL_SIZE=5      # Use 5 Chrome instances"
+    echo "  FETCH_URL_CHROME_POOL_SIZE=5      # Allow up to 5 Chrome instances"
+    echo "  FETCH_URL_CHROME_IDLE_TIMEOUT=60  # Shut down Chrome after 60s unused"
     echo "  FETCH_URL_CACHE_TTL=1800          # 30-minute cache TTL"
     echo "  FETCH_URL_TIMEOUT=45              # 45-second timeout"
     echo ""
@@ -114,6 +116,7 @@ function run_server() {
     echo_info "Configuration:"
     echo "  FETCH_URL_BLOCK_LOCAL: ${FETCH_URL_BLOCK_LOCAL:-true (default)}"
     echo "  FETCH_URL_CHROME_POOL_SIZE: ${FETCH_URL_CHROME_POOL_SIZE:-3 (default)}"
+    echo "  FETCH_URL_CHROME_IDLE_TIMEOUT: ${FETCH_URL_CHROME_IDLE_TIMEOUT:-300 (default)}"
     echo "  FETCH_URL_CACHE_TTL: ${FETCH_URL_CACHE_TTL:-3600 (default)}"
     echo "  FETCH_URL_TIMEOUT: ${FETCH_URL_TIMEOUT:-30 (default)}"
     echo ""

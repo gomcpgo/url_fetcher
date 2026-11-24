@@ -12,9 +12,14 @@ type Config struct {
 	// BlockLocal controls whether to block requests to local/private IPs
 	BlockLocal bool
 	
-	// ChromePoolSize is the number of Chrome instances to keep in the pool
+	// ChromePoolSize is the maximum number of Chrome instances running at once.
+	// Chrome is started on demand, so this is a limit, not a standing count.
 	ChromePoolSize int
-	
+
+	// ChromeIdleTimeout is how long a Chrome instance may sit unused before it
+	// is shut down. Zero keeps idle instances until the server exits.
+	ChromeIdleTimeout time.Duration
+
 	// CacheTTL is the time-to-live for cached responses in seconds
 	CacheTTL time.Duration
 	
@@ -25,10 +30,11 @@ type Config struct {
 // LoadConfig loads configuration from environment variables with defaults
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
-		BlockLocal:     true,
-		ChromePoolSize: 3,
-		CacheTTL:       time.Hour,
-		Timeout:        30 * time.Second,
+		BlockLocal:        true,
+		ChromePoolSize:    3,
+		ChromeIdleTimeout: 5 * time.Minute,
+		CacheTTL:          time.Hour,
+		Timeout:           30 * time.Second,
 	}
 	
 	// FETCH_URL_BLOCK_LOCAL
@@ -52,6 +58,18 @@ func LoadConfig() (*Config, error) {
 		cfg.ChromePoolSize = poolSize
 	}
 	
+	// FETCH_URL_CHROME_IDLE_TIMEOUT
+	if val := os.Getenv("FETCH_URL_CHROME_IDLE_TIMEOUT"); val != "" {
+		idleSeconds, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("invalid FETCH_URL_CHROME_IDLE_TIMEOUT value: %s", val)
+		}
+		if idleSeconds < 0 {
+			return nil, fmt.Errorf("FETCH_URL_CHROME_IDLE_TIMEOUT must be non-negative")
+		}
+		cfg.ChromeIdleTimeout = time.Duration(idleSeconds) * time.Second
+	}
+
 	// FETCH_URL_CACHE_TTL
 	if val := os.Getenv("FETCH_URL_CACHE_TTL"); val != "" {
 		ttlSeconds, err := strconv.Atoi(val)

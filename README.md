@@ -54,7 +54,8 @@ Configure via environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FETCH_URL_BLOCK_LOCAL` | `true` | Block requests to local/private IPs |
-| `FETCH_URL_CHROME_POOL_SIZE` | `3` | Number of Chrome instances in pool |
+| `FETCH_URL_CHROME_POOL_SIZE` | `3` | Maximum number of Chrome instances running at once (started on demand) |
+| `FETCH_URL_CHROME_IDLE_TIMEOUT` | `300` | Seconds a Chrome instance may sit unused before it is shut down (`0` = keep until the server exits) |
 | `FETCH_URL_CACHE_TTL` | `3600` | Cache TTL in seconds (1 hour) |
 | `FETCH_URL_TIMEOUT` | `30` | Request timeout in seconds |
 
@@ -279,6 +280,12 @@ The assistant will automatically use the `fetch_url` tool with appropriate param
   - Waits for network idle (500ms)
   - Waits for DOM stability (500ms)
   - Maximum wait time: 15 seconds
+
+#### Chrome process lifecycle
+- No Chrome is started until the first `engine: "chrome"` request. Up to `FETCH_URL_CHROME_POOL_SIZE` instances run when requests overlap, and an instance unused for `FETCH_URL_CHROME_IDLE_TIMEOUT` seconds is shut down again.
+- On shutdown (stdin closed, SIGINT, SIGTERM or SIGHUP) the server kills its Chrome instances and deletes their profile directories.
+- Profiles live in `<temp dir>/url-fetcher-chrome/session-*/`. If the server is killed outright (SIGKILL, crash), Chrome can outlive it on macOS and Windows. The next server to start detects the dead session, kills the Chrome processes still using it and deletes the directory.
+- The same startup sweep deletes `chromedp-runner*` profile directories in the temp dir that are older than 10 minutes and not used by any running process. Versions before this lifecycle handling leaked those (about 100 MB each) whenever the server was stopped by a signal.
 
 ## Security Features
 
