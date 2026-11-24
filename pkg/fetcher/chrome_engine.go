@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"sync"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
@@ -15,34 +14,25 @@ import (
 
 // ChromeEngine handles Chrome-based URL fetching with a browser pool
 type ChromeEngine struct {
-	config       *config.Config
-	pool         *BrowserPool
-	isAvailable  bool
-	availability sync.Once
+	config      *config.Config
+	pool        *BrowserPool
+	isAvailable bool
 }
 
-// BrowserPool manages a pool of Chrome browser instances
-type BrowserPool struct {
-	contexts    []context.Context
-	cancelFuncs []context.CancelFunc
-	available   chan int
-	mu          sync.Mutex
-}
-
-// NewChromeEngine creates a new Chrome engine
+// NewChromeEngine creates a new Chrome engine. No Chrome process is started
+// here: browsers are launched by the pool on the first Chrome fetch.
 func NewChromeEngine(cfg *config.Config) *ChromeEngine {
 	engine := &ChromeEngine{
-		config: cfg,
+		config:      cfg,
+		isAvailable: checkChromeAvailable(),
 	}
-
-	// Check Chrome availability once
-	engine.availability.Do(func() {
-		engine.isAvailable = checkChromeAvailable()
-	})
 
 	if engine.isAvailable {
-		engine.pool = newBrowserPool(cfg.ChromePoolSize)
+		engine.pool = newBrowserPool(cfg.ChromePoolSize, cfg.ChromeIdleTimeout)
 	}
+
+	// Clean up after earlier processes that died without shutting down.
+	go sweepStaleProfiles()
 
 	return engine
 }
@@ -60,16 +50,15 @@ func (e *ChromeEngine) Fetch(fetchURL string, maxContentLength int) (*types.Fetc
 		return nil, fmt.Errorf("Chrome is not available on this system")
 	}
 
-	// Get a browser instance from the pool
-	instanceID := <-e.pool.available
-	defer func() {
-		e.pool.available <- instanceID
-	}()
-
-	ctx := e.pool.contexts[instanceID]
+	// Get a browser from the pool, launching Chrome if none is idle
+	b, err := e.pool.acquire()
+	if err != nil {
+		return types.ErrorResponse(fetchURL, types.EngineChrome, err, time.Since(startTime)), err
+	}
+	defer e.pool.release(b)
 
 	// Create a new tab context with timeout
-	tabCtx, cancel := chromedp.NewContext(ctx)
+	tabCtx, cancel := chromedp.NewContext(b.ctx)
 	defer cancel()
 
 	timeoutCtx, timeoutCancel := context.WithTimeout(tabCtx, e.config.Timeout)
@@ -93,7 +82,7 @@ func (e *ChromeEngine) Fetch(fetchURL string, maxContentLength int) (*types.Fetc
 	})
 
 	// Navigate and wait with smart strategy
-	err := chromedp.Run(timeoutCtx,
+	err = chromedp.Run(timeoutCtx,
 		// Enable network events
 		network.Enable(),
 
@@ -153,64 +142,11 @@ func (e *ChromeEngine) Fetch(fetchURL string, maxContentLength int) (*types.Fetc
 	return response, nil
 }
 
-// Close shuts down the browser pool
+// Close kills every Chrome instance and removes their profile directories.
+// It is safe to call more than once.
 func (e *ChromeEngine) Close() {
 	if e.pool != nil {
 		e.pool.Close()
-	}
-}
-
-// newBrowserPool creates a new browser pool
-func newBrowserPool(size int) *BrowserPool {
-	pool := &BrowserPool{
-		contexts:    make([]context.Context, size),
-		cancelFuncs: make([]context.CancelFunc, size),
-		available:   make(chan int, size),
-	}
-
-	// Initialize browser instances
-	for i := 0; i < size; i++ {
-		opts := append(chromedp.DefaultExecAllocatorOptions[:],
-			chromedp.Flag("headless", true),
-			chromedp.Flag("disable-gpu", true),
-			chromedp.Flag("no-sandbox", true),
-			chromedp.Flag("disable-dev-shm-usage", true),
-			chromedp.Flag("disable-setuid-sandbox", true),
-			chromedp.Flag("disable-web-security", false),
-			chromedp.Flag("disable-features", "IsolateOrigins,site-per-process"),
-			chromedp.Flag("disable-blink-features", "AutomationControlled"),
-			chromedp.UserAgent(types.DefaultUserAgent),
-		)
-
-		allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
-		browserCtx, browserCancel := chromedp.NewContext(allocCtx)
-
-		pool.contexts[i] = browserCtx
-		pool.cancelFuncs[i] = func() {
-			browserCancel()
-			allocCancel()
-		}
-		pool.available <- i
-
-		// Pre-warm the browser instance
-		go func(ctx context.Context) {
-			chromedp.Run(ctx)
-		}(browserCtx)
-	}
-
-	return pool
-}
-
-// Close shuts down all browser instances in the pool
-func (p *BrowserPool) Close() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	close(p.available)
-	for _, cancel := range p.cancelFuncs {
-		if cancel != nil {
-			cancel()
-		}
 	}
 }
 

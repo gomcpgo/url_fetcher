@@ -7,6 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/gomcpgo/mcp/pkg/handler"
 	"github.com/gomcpgo/mcp/pkg/protocol"
@@ -248,11 +251,31 @@ func (s *URLFetcherMCPServer) formatErrorResponse(url, error string) map[string]
 	}
 }
 
-// Close shuts down the server
+// Close shuts down the server: it kills any Chrome instances and removes
+// their profile directories. It is safe to call more than once.
 func (s *URLFetcherMCPServer) Close() {
 	if s.fetcher != nil {
 		s.fetcher.Close()
 	}
+}
+
+// closeOnSignal makes sure Close runs however the process is asked to stop.
+// Without it Go exits on the spot, Chrome is left running without a parent
+// and its profile directory is never deleted.
+func closeOnSignal(s *URLFetcherMCPServer) {
+	// The client usually goes away by closing our pipes. A write to a closed
+	// stdout or stderr (a log line is enough) would kill the process with
+	// SIGPIPE before it gets to clean up; ignored, the write just fails.
+	signal.Ignore(syscall.SIGPIPE)
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+	go func() {
+		sig := <-signals
+		log.Printf("Received %v, shutting down", sig)
+		s.Close()
+		os.Exit(0)
+	}()
 }
 
 // Test mode for the server
@@ -265,6 +288,7 @@ func runTestMode() {
 		log.Fatalf("Failed to create server: %v", err)
 	}
 	defer server.Close()
+	closeOnSignal(server)
 
 	// Test cases with diverse real-world examples
 	testCases := []struct {
@@ -381,7 +405,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create server: %v", err)
 	}
-	defer urlServer.Close()
+	closeOnSignal(urlServer)
 
 	// Create handler registry
 	registry := handler.NewHandlerRegistry()
@@ -398,7 +422,12 @@ func main() {
 		Registry: registry,
 	})
 
-	if err := mcpServer.Run(); err != nil {
-		log.Fatalf("Server error: %v", err)
+	// Run returns when the client closes stdin. Close explicitly rather than
+	// with defer: os.Exit and log.Fatal skip deferred calls.
+	err = mcpServer.Run()
+	urlServer.Close()
+	if err != nil {
+		log.Printf("Server error: %v", err)
+		os.Exit(1)
 	}
 }
